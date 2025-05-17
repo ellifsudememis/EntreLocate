@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <title>İşletme Bulma Uygulaması</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <style>
+    #map {
+      height: 400px;
+      width: 100%;
+      border-radius: 0.5rem;
+      margin-top: 1em;
+    }
+    .chatbot-container {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 p-4">
+  <div class="container mx-auto">
+    <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Konum ve İşletme Türü Seç</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label for="city" class="block text-gray-700 font-semibold mb-1">Şehir</label>
+          <select id="city" class="w-full border border-gray-300 rounded px-3 py-2">
+            <option value="">Seçiniz</option>
+            <option value="istanbul">İstanbul</option>
+            <option value="ankara">Ankara</option>
+            <option value="izmir">İzmir</option>
+            <option value="antalya">Antalya</option>
+            <option value="bursa">Bursa</option>
+          </select>
+        </div>
+        <div>
+          <label for="district" class="block text-gray-700 font-semibold mb-1">İlçe</label>
+          <select id="district" class="w-full border border-gray-300 rounded px-3 py-2">
+            <option value="">Seçiniz</option>
+          </select>
+        </div>
+        <div>
+          <label for="businessType" class="block text-gray-700 font-semibold mb-1">İşletme Türü</label>
+          <select id="businessType" class="w-full border border-gray-300 rounded px-3 py-2">
+            <option value="">Seçiniz</option>
+            <option value="market">Market</option>
+            <option value="kafe">Kafe</option>
+            <option value="restoran">Restoran</option>
+            <option value="eczane">Eczane</option>
+            <option value="kitapci">Kitapçı</option>
+          </select>
+        </div>
+      </div>
+      <div class="mt-4 text-center">
+        <button id="searchButton" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">Raporu Getir</button>
+      </div>
+    </div>
+
+    <div id="map" class="bg-gray-300 mb-6 flex items-center justify-center text-gray-600 text-xl">
+      Harita Yükleniyor...
+    </div>
+
+    <div id="reportDisplay" class="bg-white p-6 rounded-lg shadow-md mb-6 hidden">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">İşletme Raporu</h2>
+      <p><strong>İsim:</strong> <span id="businessName"></span></p>
+      <p><strong>Tür:</strong> <span id="businessTypeInfo"></span></p>
+      <p><strong>Adres:</strong> <span id="businessAddress"></span></p>
+      <p><strong>İletişim:</strong> <span id="businessContact"></span></p>
+      <p><strong>Çalışma Saatleri:</strong> <span id="businessHours"></span></p>
+      <p><strong>Puan:</strong> <span id="ratingStars"></span> (<span id="ratingValue"></span>)</p>
+      <p><strong>Açıklama:</strong> <span id="businessDescription"></span></p>
+    </div>
+
+    <div id="noReport" class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-6 hidden">
+      Seçimlerinize uygun işletme bulunamadı.
+    </div>
+
+    <div class="bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Yardımcı Bot</h2>
+      <div class="chatbot-container bg-gray-50 border border-gray-300 p-4 rounded mb-4" id="chatMessages">
+        <div class="text-gray-700 italic">Merhaba! Nasıl yardımcı olabilirim?</div>
+      </div>
+      <div class="flex">
+        <input type="text" id="chatInput" placeholder="Bir mesaj yazın..." class="flex-1 border border-gray-300 rounded-l px-4 py-2 focus:outline-none" />
+        <button id="sendMessage" class="bg-blue-600 text-white px-4 py-2 rounded-r hover:bg-blue-700">Gönder</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    let map;
+    let markers = [];
+
+    const businesses = [
+      {
+        id: 1,
+        name: "Mavi Market",
+        type: "market",
+        city: "istanbul",
+        district: "kadıköy",
+        lat: 40.9982,
+        lng: 29.0231,
+        address: "Osmanağa Mah. Mühürdar Cad. No:28, Kadıköy",
+        contact: "0216 XXX XX XX",
+        hours: "08:00 - 22:00",
+        rating: 4.5,
+        description: "Geniş ürün yelpazesi ve taze ürünleriyle hizmetinizde.",
+      },
+      {
+        id: 2,
+        name: "Keyif Kafe",
+        type: "kafe",
+        city: "istanbul",
+        district: "beşiktaş",
+        lat: 41.0331,
+        lng: 28.9962,
+        address: "Sinanpaşa Mah. Ihlamur Cad. No:10, Beşiktaş",
+        contact: "0212 YYY YY YY",
+        hours: "09:00 - 23:00",
+        rating: 4.8,
+        description: "Sıcak atmosferi ve lezzetli kahveleriyle keyifli bir mola.",
+      },
+      {
+        id: 3,
+        name: "Lezzet Restoran",
+        type: "restoran",
+        city: "ankara",
+        district: "çankaya",
+        lat: 39.9234,
+        lng: 32.8497,
+        address: "Kızılay Mah. Gazi Mustafa Kemal Blv. No:85, Çankaya",
+        contact: "0312 ZZZ ZZ ZZ",
+        hours: "11:00 - 24:00",
+        rating: 4.6,
+        description: "Usta şeflerin elinden seçkin lezzetler.",
+      },
+      {
+        id: 4,
+        name: "Umut Eczanesi",
+        type: "eczane",
+        city: "ankara",
+        district: "yenimahalle",
+        lat: 39.9456,
+        lng: 32.7912,
+        address: "Batıkent Mah. 1. Cadde No:5, Yenimahalle",
+        contact: "0312 TTT TT TT",
+        hours: "09:00 - 19:00 (Pzt-Cuma)",
+        rating: 4.2,
+        description: "Geniş ilaç ve sağlık ürünleri stoğu ile hizmetinizde.",
+      },
+      {
+        id: 5,
+        name: "Bilgi Kitapçı",
+        type: "kitapci",
+        city: "izmir",
+        district: "alsancak",
+        lat: 38.4417,
+        lng: 27.1318,
+        address: "Kıbrıs Şehitleri Cad. No:120, Alsancak",
+        contact: "0232 QQQ QQ QQ",
+        hours: "10:00 - 20:00",
+        rating: 4.9,
+        description: "Geniş kitap koleksiyonu ve sıcak atmosferiyle okurların buluşma noktası.",
+      },
+      {
+        id: 6,
+        name: "Sahil Kafe",
+        type: "kafe",
+        city: "izmir",
+        district: "karşıyaka",
+        lat: 38.4589,
+        lng: 27.1752,
+        address: "Bostanlı Mah. Cemal Gürsel Cad. No:45, Karşıyaka",
+        contact: "0232 RRR RR RR",
+        hours: "08:00 - 01:00",
+        rating: 4.7,
+        description: "Deniz manzarası eşliğinde keyifli sohbetler ve lezzetli atıştırmalıklar.",
+      },
+      {
+        id: 7,
+        name: "Merkez Market",
+        type: "market",
+        city: "antalya",
+        district: "muratpaşa",
+        lat: 36.8852,
+        lng: 30.7021,
+        address: "Lara Cad. No:78, Muratpaşa",
+        contact: "0242 SSS SS SS",
+        hours: "07:30 - 23:00",
+        rating: 4.3,
+        description: "Günlük ihtiyaçlarınız için geniş ürün seçeneği.",
+      },
+      {
+        id: 8,
+        name: "Antalya Restoran",
+        type: "restoran",
+        city: "antalya",
+        district: "konyaaltı",
+        lat: 36.8964,
+        lng: 30.6315,
+        address: "Liman Mah. Atatürk Blv. No:101, Konyaaltı",
+        contact: "0242 UUU UU UU",
+        hours: "12:00 - 00:00",
+        rating: 4.5,
+        description: "Akdeniz'in taze lezzetleri ve şık atmosfer.",
+      },
+      {
+        id: 9,
+        name: "Bursa Kitapçı",
+        type: "kitapci",
+        city: "bursa",
+        district: "osmangazi",
+        lat: 40.1833,
+        lng: 29.0667,
+        address: "Heykel Meydanı No:5, Osmangazi",
+        contact: "0224 VVV VV VV",
+        hours: "09:30 - 19:30",
+        rating: 4.8,
+        description: "Bursa'nın kalbinde geniş bir kitap dünyası.",
+      },
+      {
+        id: 10,
+        name: "Şifa Eczanesi",
+        type: "eczane",
+        city: "bursa",
+        district: "nilüfer",
+        lat: 40.2159,
+        lng: 28.9053,
+        address: "Fatih Sultan Mehmet Blv. No:220, Nilüfer",
+        contact: "0224 WWW WW WW",
+        hours: "08:30 - 19:30 (Pzt-Cmt)",
+        rating: 4.1,
+        description: "Sağlığınız için güvenilir adres.",
+      },
+    ];
+
+    const districtsByCity = {
+      istanbul: ["kadıköy", "beşiktaş", "üsküdar", "ataşehir", "beyoğlu"],
+      ankara: ["çankaya", "yenimahalle", "keçiören", "mamak", "etimesgut"],
+      izmir: ["alsancak", "karşıyaka", "konak", "bornova", "buca"],
+      antalya: ["muratpaşa", "konyaaltı", "alanya", "manavgat", "kemer"],
+      bursa: ["osmangazi", "nilüfer", "yıldırım", "mudanya", "gemlik"],
+    };
+
+    function initMap() {
+      map = L.map('map').setView([39.9334, 32.8597], 6);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+    }
+
+    function clearMarkers() {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+    }
+
+    function updateDistricts() {
+      const citySelect = document.getElementById('city');
+      const districtSelect = document.getElementById('district');
+      const selectedCity = citySelect.value;
+
+      districtSelect.innerHTML = '<option value="">Seçiniz</option>';
+
+      if (selectedCity && districtsByCity[selectedCity]) {
+        districtsByCity[selectedCity].forEach(district => {
+          const option = document.createElement('option');
+          option.value = district;
+          option.textContent = district.charAt(0).toUpperCase() + district.slice(1);
+          districtSelect.appendChild(option);
+        });
+      }
+    }
+
+    function displayReport(business) {
+      document.getElementById('reportDisplay').classList.remove('hidden');
+      document.getElementById('noReport').classList.add('hidden');
+      document.getElementById('businessName').textContent = business.name;
+      document.getElementById('businessTypeInfo').textContent = business.type.charAt(0).toUpperCase() + business.type.slice(1);
+      document.getElementById('businessAddress').textContent = business.address;
+      document.getElementById('businessContact').textContent = business.contact || "Belirtilmemiş";
+      document.getElementById('businessHours').textContent = business.hours || "Belirtilmemiş";
+      document.getElementById('ratingValue').textContent = business.rating || "Belirtilmemiş";
+      document.getElementById('businessDescription').textContent = business.description || "Açıklama bulunmuyor.";
+
+      const ratingStarsContainer = document.getElementById('ratingStars');
+      ratingStarsContainer.innerHTML = '';
+      const rating = business.rating || 0;
+      const fullStars = Math.floor(rating);
+      const hasHalfStar = rating % 1 !== 0;
+
+      for (let i = 0; i < fullStars; i++) {
+        ratingStarsContainer.innerHTML += '⭐';
+      }
+      if (hasHalfStar) {
+        ratingStarsContainer.innerHTML += '½';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      updateDistricts();
+
+      document.getElementById('city').addEventListener('change', updateDistricts);
+
+      document.getElementById('searchButton').addEventListener('click', () => {
+        const businessType = document.getElementById('businessType').value;
+        const city = document.getElementById('city').value;
+        const district = document.getElementById('district').value.toLowerCase();
+
+        clearMarkers();
+        document.getElementById('reportDisplay').classList.add('hidden');
+        document.getElementById('noReport').classList.add('hidden');
+
+        let filtered = businesses.filter(b => {
+          return (!businessType || b.type === businessType) &&
+                 (!city || b.city === city) &&
+                 (!district || b.district === district);
+        });
+
+        if (filtered.length === 0) {
+          document.getElementById('noReport').classList.remove('hidden');
+          map.setView([39.9334, 32.8597], 6); // Genel Türkiye görünümü
+          return;
+        } else if (filtered.length === 1) {
+          displayReport(filtered[0]);
+        } else {
+          document.getElementById('reportDisplay').classList.add('hidden');
+          document.getElementById('noReport').classList.add('hidden');
+        }
+
+        let bounds = [];
+        filtered.forEach(b => {
+          const marker = L.marker([b.lat, b.lng])
+            .addTo(map)
+            .bindPopup(`<b>${b.name}</b><br>${b.address}`);
+          markers.push(marker);
+          bounds.push([b.lat, b.lng]);
+        });
+
+        if (bounds.length) {
+          map.fitBounds(bounds);
+        } else if (city && districtsByCity[city]) {
+          // Eğer şehir seçiliyse ve ilçeleri varsa, o şehrin merkezine odaklan
+          let cityCenter;
+          switch (city) {
+            case 'istanbul':
+              cityCenter = [41.0082, 28.9784];
+              break;
+            case 'ankara':
+              cityCenter = [39.9334, 32.8597];
+              break;
+            case 'izmir':
+              cityCenter = [38.4189, 27.1287];
+              break;
+            case 'antalya':
+              cityCenter = [36.8969, 30.7133];
+              break;
+            case 'bursa':
+              cityCenter = [40.1833, 29.0667];
+              break;
+            default:
+              cityCenter = [39.9334, 32.8597]; // Varsayılan Türkiye merkezi
+          }
+          map.setView(cityCenter, 10);
+        } else {
+          map.setView([39.9334, 32.8597], 6); // Genel Türkiye görünümü
+        }
+      });
+
+      // Chatbot İşlevselliği
+      const chatInput = document.getElementById('chatInput');
+      const sendMessageButton = document.getElementById('sendMessage');
+      const chatMessages = document.getElementById('chatMessages');
+
+      sendMessageButton.addEventListener('click', () => {
+        const message = chatInput.value.trim();
+        if (message) {
+          addMessage('user', message);
+          // Burada botun cevabını simüle edebilirsiniz.
+          setTimeout(() => {
+            const botResponse = getBotResponse(message);
+            addMessage('bot', botResponse);
+          }, 500);
+          chatInput.value = '';
+        }
+      });
+
+      chatInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+          sendMessageButton.click();
+        }
+      });
+
+      function addMessage(sender, text) {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('mb-2', sender === 'user' ? 'text-right' : 'text-left');
+        messageDiv.innerHTML = `<span class="px-3 py-2 rounded-lg ${sender === 'user' ? 'bg-blue-200 text-blue-800' : 'bg-gray-200 text-gray-800'}">${text}</span>`;
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight; // En alta kaydır
+      }
+
+      function getBotResponse(userMessage) {
+        userMessage = userMessage.toLowerCase();
+        if (userMessage.includes('merhaba') || userMessage.includes('selam')) {
+          return 'Merhaba! Size nasıl yardımcı olabilirim?';
+        } else if (userMessage.includes('işletme ara') || userMessage.includes('rapor')) {
+          return 'Arama yapmak için lütfen şehir, ilçe ve işletme türü seçin ve "Raporu Getir" düğmesine tıklayın.';
+        } else if (userMessage.includes('konum') || userMessage.includes('nerede')) {
+          return 'Konum seçimi yaparak harita üzerinde işletmeleri görüntüleyebilirsiniz.';
+        } else if (userMessage.includes('teşekkür')) {
+          return 'Rica ederim, yardımcı olabildiysem ne mutlu!';
+        } else {
+          return 'Üzgünüm, bu konuda size yardımcı olamıyorum.';
+        }
+      }
+    });
+  </script>
+  <script>
+  // Chatbot intelligence (simple keyword matching)
+  const citySelect = document.getElementById("city");
+  const districtSelect = document.getElementById("district");
+  const typeSelect = document.getElementById("businessType");
+
+  const cityOptions = {
+    istanbul: ["kadıköy", "beşiktaş"],
+    ankara: ["çankaya", "yenimahalle"],
+    izmir: ["alsancak", "karşıyaka"],
+    antalya: ["muratpaşa", "konyaaltı"],
+    bursa: ["osmangazi"]
+  };
+
+  document.getElementById("sendMessage").addEventListener("click", () => {
+    const input = document.getElementById("chatInput").value.toLowerCase();
+    const chatBox = document.getElementById("chatMessages");
+
+    // Add user message to chat
+    const userMsg = document.createElement("div");
+    userMsg.className = "text-right text-blue-700 mb-2";
+    userMsg.textContent = input;
+    chatBox.appendChild(userMsg);
+
+    // Chatbot logic
+    let botResponse = "Anlayamadım, lütfen şehir veya işletme türü belirtin.";
+    let found = false;
+
+    for (const city in cityOptions) {
+      if (input.includes(city)) {
+        citySelect.value = city;
+        // Auto-load districts
+        loadDistricts(city);
+        found = true;
+      }
+
+      cityOptions[city].forEach(district => {
+        if (input.includes(district)) {
+          districtSelect.value = district;
+          found = true;
+        }
+      });
+    }
+
+    const businessTypes = ["market", "kafe", "restoran", "eczane", "kitapçı"];
+    businessTypes.forEach(type => {
+      if (input.includes(type)) {
+        typeSelect.value = type;
+        found = true;
+      }
+    });
+
+    if (found) {
+      botResponse = "Seçimler yapıldı. Rapor getiriliyor...";
+      setTimeout(() => {
+        document.getElementById("searchButton").click();
+      }, 500);
+    }
+
+    // Add bot response
+    const botMsg = document.createElement("div");
+    botMsg.className = "text-gray-700 mb-2";
+    botMsg.textContent = botResponse;
+    chatBox.appendChild(botMsg);
+    document.getElementById("chatInput").value = "";
+    chatBox.scrollTop = chatBox.scrollHeight;
+  });
+
+  // Dynamic district loading
+  document.getElementById("city").addEventListener("change", (e) => {
+    loadDistricts(e.target.value);
+  });
+
+  function loadDistricts(city) {
+    const districts = cityOptions[city] || [];
+    districtSelect.innerHTML = `<option value="">Seçiniz</option>`;
+    districts.forEach(dist => {
+      const option = document.createElement("option");
+      option.value = dist;
+      option.textContent = dist.charAt(0).toUpperCase() + dist.slice(1);
+      districtSelect.appendChild(option);
+    });
+  }
+</script>
+</body>
+</html>

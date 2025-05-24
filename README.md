@@ -12,7 +12,7 @@ Map Interface: Visualizes recommended locations and nearby facilities using Open
 
 Document Processing: Extracts relevant statistical data from PDF and Excel files to support grounded and accurate AI-generated responses.
 
-#Tech Stack
+# Tech Stack
 Frontend: Gradio, HTML, Leaflet.js
 
 Backend: Python, Flask

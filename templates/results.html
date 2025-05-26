@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Results</title>
+</head>
+<body>
+  <h2>Top Items for {{ business_type }} in {{ district }}, {{ city }}</h2>
+  <ul>
+    {% for item in items %}
+      <li>
+        <strong>{{ item.item }}</strong><br>
+        {% if item.error %}
+           {{ item.error }}
+        {% else %}
+           {{ item.price }} - {{ item.title }} ({{ item.source }})<br>
+          🔗 <a href="{{ item.link }}" target="_blank">View</a>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+  <a href="/">Try Another</a>
+</body>
+</html>
